@@ -1,155 +1,196 @@
-/* Copyright (C) 2023 Alif Semiconductor - All Rights Reserved.
+/* Copyright (C) 2024 Alif Semiconductor - All Rights Reserved.
  * Use, distribution and modification of this code is permitted under the
  * terms stated in the Alif Semiconductor Software License Agreement
  *
  * You should have received a copy of the Alif Semiconductor Software
  * License Agreement with this file. If not, please write to:
  * contact@alifsemi.com, or visit: https://alifsemi.com/license
+ *
  */
-
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-#include <zephyr/sys/__assert.h>
-#include <zephyr/device.h>
+#include <zephyr/sys/printk.h>
 #include <zephyr/drivers/i2s.h>
-#include <math.h>
+#include <zephyr/audio/codec.h>
+#include <string.h>
+#include "hello_sample.h"
 
-#define I2S_WORD_SIZE_BITS                16
-#define I2S_WORD_SIZE_BYTES               (I2S_WORD_SIZE_BITS / 8)
-#define I2S_CHANNEL_COUNT                 2
-#define I2S_SAMPLE_FREQUENCY              48000
-#define I2S_SAMPLES_PER_CHANNEL_PER_FRAME 480
-#define I2S_TIMEOUT_MS                    SYS_FOREVER_MS
-#define I2S_BLOCK_COUNT                   5
-#define I2S_MEM_ALIGN                     4
-#define I2S_BLOCK_SIZE_BYTES                                                                       \
-	(I2S_SAMPLES_PER_CHANNEL_PER_FRAME * I2S_CHANNEL_COUNT * I2S_WORD_SIZE_BYTES)
 
-#define SIGNAL_AMPLITUDE 4000.0f
-#define SIGNAL_FREQUENCY 400.0f
-#define PI               3.14159265358979323846f /* M_PI is missing from math.h */
+#define I2S_CODEC_TX  DT_ALIAS(i2s_codec_tx)
 
-LOG_MODULE_REGISTER(main);
 
-#define CODEC_NODE DT_ALIAS(audio_codec)
-static const struct device *codec_dev = DEVICE_DT_GET(CODEC_NODE);
+#if DT_NODE_EXISTS(DT_NODELABEL(i2s_rxtx))
+#define I2S_RX_NODE  DT_NODELABEL(i2s_rxtx)
+#define I2S_TX_NODE  I2S_RX_NODE
+#else
+#define I2S_RX_NODE  DT_NODELABEL(i2s_rx)
+#define I2S_TX_NODE  DT_NODELABEL(i2s_tx)
+#endif
 
-#define I2S_NODE DT_ALIAS(i2s_bus)
-static const struct device *i2s_dev = DEVICE_DT_GET(I2S_NODE);
+#define SAMPLE_FREQUENCY    48000
+#define SAMPLE_BIT_WIDTH    24
+#define BYTES_PER_SAMPLE    sizeof(uint32_t)
+#define NUMBER_OF_CHANNELS  2
 
-K_MEM_SLAB_DEFINE_STATIC(i2s_mem, I2S_BLOCK_SIZE_BYTES, I2S_BLOCK_COUNT, I2S_MEM_ALIGN);
+/* Such block length provides an echo with the delay of 100 ms. */
+#define SAMPLES_PER_BLOCK   ((SAMPLE_FREQUENCY / 10) * NUMBER_OF_CHANNELS)
+#define INITIAL_BLOCKS      4
+#define TIMEOUT             1000
+#define BLOCK_SIZE  (BYTES_PER_SAMPLE * SAMPLES_PER_BLOCK)
+#define BLOCK_COUNT (10)
+K_MEM_SLAB_DEFINE_STATIC(tx_slab, BLOCK_SIZE, BLOCK_COUNT, 4);
 
-static int16_t tx_data_block[I2S_CHANNEL_COUNT * I2S_SAMPLES_PER_CHANNEL_PER_FRAME];
-
-static void tx_data_populate(void)
+static bool config_streams(const struct device *i2s_dev_rx,
+			      const struct device *i2s_dev_tx,
+			      const struct i2s_config *config)
 {
-	/* Populate the TX data with a constant frequency signal */
-	for (uint32_t i = 0; i < I2S_SAMPLES_PER_CHANNEL_PER_FRAME; i++) {
-		int16_t *left = &tx_data_block[i * I2S_CHANNEL_COUNT];
-		int16_t *right = &tx_data_block[i * I2S_CHANNEL_COUNT + 1];
+	int ret;
 
-		int16_t sample = SIGNAL_AMPLITUDE *
-				 sin((2.0f * PI * SIGNAL_FREQUENCY * i) / I2S_SAMPLE_FREQUENCY);
-		*left = sample;
-		*right = sample;
-	}
-}
-
-static int write_one_block(const struct device *dev, k_timeout_t timeout)
-{
-	void *mem_block;
-
-	int ret = k_mem_slab_alloc(&i2s_mem, &mem_block, timeout);
-
-	if (ret) {
-		LOG_ERR("Failed to allocate slab, err %d", ret);
-		return ret;
-	}
-
-	memcpy(mem_block, tx_data_block, I2S_BLOCK_SIZE_BYTES);
-
-	ret = i2s_write(dev, mem_block, I2S_BLOCK_SIZE_BYTES);
-	if (ret) {
-		LOG_ERR("Failed to write to I2S, err %d", ret);
-		return ret;
-	}
-
-	return 0;
-}
-
-static int i2s_buffers_fill(const struct device *dev)
-{
-	for (uint32_t i = 0; i < I2S_BLOCK_COUNT; i++) {
-		int ret = write_one_block(dev, K_NO_WAIT);
-
-		if (ret) {
-			return ret;
+	if (i2s_dev_rx == i2s_dev_tx) {
+		ret = i2s_configure(i2s_dev_rx, I2S_DIR_BOTH, config);
+		if (ret == 0) {
+			return true;
+		}
+		/* -ENOSYS means that the RX and TX streams need to be
+		 * configured separately.
+		 */
+		if (ret != -ENOSYS) {
+			printk("Failed to configure streams: %d\n", ret);
+			return false;
 		}
 	}
 
-	return 0;
+	ret = i2s_configure(i2s_dev_rx, I2S_DIR_RX, config);
+	if (ret < 0) {
+		printk("Failed to configure RX stream: %d\n", ret);
+		return false;
+	}
+
+	ret = i2s_configure(i2s_dev_tx, I2S_DIR_TX, config);
+	if (ret < 0) {
+		printk("Failed to configure TX stream: %d\n", ret);
+		return false;
+	}
+	return true;
+}
+static bool tx_init(const struct device *i2s_dev_tx)
+{
+	int ret;
+
+	char *buf = (char *) &ulHelloSamples24bit48khz;
+	uint32_t size = sizeof(ulHelloSamples24bit48khz)/
+			sizeof(ulHelloSamples24bit48khz[0]);
+	int blocks = (size * 4) / BLOCK_SIZE;
+	int offset = 0;
+	void *mem_block;
+
+	for (int i = 0; i < blocks; ++i) {
+
+		ret = k_mem_slab_alloc(&tx_slab, &mem_block, K_NO_WAIT);
+		if (ret < 0) {
+			printk("Failed to allocate TX block %d: %d\n", i, ret);
+			return false;
+		}
+		memcpy(mem_block, &buf[offset], BLOCK_SIZE);
+		offset += BLOCK_SIZE;
+		ret = i2s_write(i2s_dev_tx, mem_block, BLOCK_SIZE);
+		if (ret < 0) {
+			printk("Failed to write block %d: block_count %d %d\n",
+							 i, BLOCK_COUNT, ret);
+			return false;
+		}
+	}
+
+	return true;
+}
+static bool trigger_command(const struct device *i2s_dev_tx,
+			    enum i2s_trigger_cmd cmd)
+{
+	int ret;
+	ret = i2s_trigger(i2s_dev_tx, I2S_DIR_TX, cmd);
+	if (ret < 0) {
+		printk("Failed to trigger command %d on TX: %d\n", cmd, ret);
+		return false;
+	}
+
+	return true;
 }
 
 int main(void)
 {
-	LOG_INF("WM8904 demo starting");
+	const struct device *const i2s_dev_codec = DEVICE_DT_GET(I2S_CODEC_TX);
+	const struct device *const codec_dev = DEVICE_DT_GET(DT_NODELABEL(audio_codec));
+	struct i2s_config config;
+	struct audio_codec_cfg audio_cfg;
+	int ret;
+
+	if (!device_is_ready(i2s_dev_codec)) {
+		printk("%s is not ready\n", i2s_dev_codec->name);
+		return -1;
+	}
 
 	if (!device_is_ready(codec_dev)) {
-		LOG_ERR("WM8904 codec is not ready");
+		printk("%s is not ready\n", codec_dev->name);
 		return -1;
 	}
 
-	if ((!device_is_ready(i2s_dev))) {
-		LOG_ERR("I2S device is not ready");
+	/** currently the wm8904 configs are hardcoded in driver */
+	audio_cfg.dai_route = AUDIO_ROUTE_PLAYBACK;
+	audio_cfg.dai_type = AUDIO_DAI_TYPE_I2S;
+	audio_cfg.dai_cfg.i2s.word_size = SAMPLE_BIT_WIDTH;
+	audio_cfg.dai_cfg.i2s.channels =  2;
+	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_MASTER;
+	audio_cfg.dai_cfg.i2s.frame_clk_freq = SAMPLE_FREQUENCY;
+	audio_cfg.dai_cfg.i2s.mem_slab = &tx_slab;
+	audio_cfg.dai_cfg.i2s.block_size = BLOCK_SIZE;
+	audio_codec_configure(codec_dev, &audio_cfg);
+	k_msleep(1000);
+
+
+	/* Configure I2S stream */
+	config.word_size = SAMPLE_BIT_WIDTH;
+	config.channels = NUMBER_OF_CHANNELS;
+	config.format = I2S_FMT_DATA_FORMAT_I2S;
+	config.options = I2S_OPT_BIT_CLK_MASTER | I2S_OPT_FRAME_CLK_MASTER;
+	config.frame_clk_freq = SAMPLE_FREQUENCY;
+	config.mem_slab = &tx_slab;
+	config.block_size = BLOCK_SIZE;
+	config.timeout = TIMEOUT;
+
+	ret = i2s_configure(i2s_dev_codec, I2S_DIR_TX, &config);
+	if (ret < 0) {
+		printk("Failed to configure TX stream: %d\n", ret);
+		return false;
+	}
+
+	if (!tx_init(i2s_dev_codec)) {
 		return -1;
 	}
 
-	tx_data_populate();
-
-	struct i2s_config i2s_cfg = {.word_size = I2S_WORD_SIZE_BITS,
-				     .channels = I2S_CHANNEL_COUNT,
-				     .format = I2S_FMT_DATA_FORMAT_I2S,
-				     .options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER,
-				     .frame_clk_freq = I2S_SAMPLE_FREQUENCY,
-				     .mem_slab = &i2s_mem,
-				     .block_size = I2S_BLOCK_SIZE_BYTES,
-				     .timeout = I2S_TIMEOUT_MS};
-
-	int ret = i2s_configure(i2s_dev, I2S_DIR_TX, &i2s_cfg);
-
-	if (ret) {
-		LOG_ERR("Failed to configure I2S, err %d", ret);
-		return ret;
+	if (!trigger_command(i2s_dev_codec, I2S_TRIGGER_START)) {
+		return -1;
 	}
 
-	ret = i2s_buffers_fill(i2s_dev);
-	if (ret) {
-		LOG_ERR("Failed to fill I2S buffers, err %d", ret);
-		return ret;
-	}
-
-	ret = i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
-	if (ret) {
-		LOG_ERR("Failed to trigger I2S, err %d", ret);
-		return ret;
-	}
-
-	LOG_INF("Triggered I2S start");
-
-	uint32_t ctr = 0;
-
+	printk("Streams started\n");
 	while (1) {
-		/* Continuously fill the I2S buffers. */
-		ret = write_one_block(i2s_dev, K_FOREVER);
-		if (ret) {
-			LOG_ERR("Failed to fill I2S buffer");
-			return ret;
-		}
 
-		ctr++;
+		void *mem_block;
+		uint32_t block_size;
+		int ret;
 
-		if ((ctr % 128) == 0) {
-			LOG_INF("I2S blocks sent: %u", ctr);
+		ret = i2s_write(i2s_dev_codec, mem_block, block_size);
+		if (ret < 0) {
+			printk("Failed to write data: %d\n", ret);
+			break;
 		}
 	}
+
+	if (!trigger_command(i2s_dev_codec,
+				I2S_TRIGGER_DROP)) {
+		return -1;
+	}
+
+	printk("Streams stopped\n");
+
+	return 0;
 }
