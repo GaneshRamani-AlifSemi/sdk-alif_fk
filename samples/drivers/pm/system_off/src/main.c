@@ -22,6 +22,14 @@
 #include <se_service.h>
 #include <zephyr/sys/util.h>
 
+
+#define SPI_PM_TEST 1
+
+#ifdef SPI_PM_TEST
+#include "spi_test.h"
+#endif
+
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pm_system_off, LOG_LEVEL_INF);
 
@@ -367,6 +375,12 @@ static void alarm_callback_fn(const struct device *wakeup_dev,
 static int app_enter_normal_sleep(uint32_t sleep_usec)
 {
 #if defined(CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER)
+
+#ifdef SPI_PM_TEST
+	spi_pm_thread_suspend();
+	LOG_INF("\n ====== SPI Transactions are Suspended");
+#endif
+
 	k_sleep(K_USEC(sleep_usec));
 #else
 	const struct device *const wakeup_dev = DEVICE_DT_GET(WAKEUP_SOURCE);
@@ -392,7 +406,6 @@ static int app_enter_normal_sleep(uint32_t sleep_usec)
 	}
 	alarm_cb_status = 0;
 
-
 #endif
 	return 0;
 }
@@ -401,6 +414,11 @@ static int app_enter_normal_sleep(uint32_t sleep_usec)
 static int app_enter_deep_sleep(uint32_t sleep_usec)
 {
 #if defined(CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER)
+
+#ifdef SPI_PM_TEST
+	spi_pm_thread_suspend();
+	LOG_INF("\nSPI Transactions are Suspended");
+#endif
 	/**
 	 * Set a delay more than the min-residency-us configured so that
 	 * the sub-system will go to OFF state.
@@ -436,6 +454,7 @@ int main(void)
 {
 	const struct device *const cons = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 	const struct device *const wakeup_dev = DEVICE_DT_GET(WAKEUP_SOURCE);
+
 	int ret;
 
 	__ASSERT(device_is_ready(cons), "%s: device not ready", cons->name);
@@ -452,9 +471,19 @@ int main(void)
 		LOG_INF("\n%s RTSS_HE (TCM boot): PM states demo (RUNTIME_IDLE, S2RAM)",
 			CONFIG_BOARD);
 	}
+
+#ifdef SPI_PM_TEST
+	LOG_INF("\n RTSS_HE: PM states demo WITH SPI Transaction");
+	spi_pm_thread_init();
+	spi_pm_thread_start();
+#endif
+
 #else
 	LOG_INF("\n%s RTSS_HP: PM states demo (RUNTIME_IDLE, SOFT_OFF)", CONFIG_BOARD);
 #endif
+
+	//let SPI do some transactions.
+	k_sleep(K_SECONDS(3));
 
 	ret = counter_start(wakeup_dev);
 	__ASSERT(!ret || ret == -EALREADY, "Failed to start counter (err %d)", ret);
@@ -538,6 +567,10 @@ int main(void)
 
 		LOG_INF("=== Resumed from PM_STATE_SUSPEND_TO_RAM (substate 0: STANDBY) ===");
 
+#ifdef SPI_PM_TEST
+		LOG_INF("\n ==== SPI Transaction Resuming..");
+		spi_pm_thread_resume();
+#endif
 		/* Verify main thread is running properly */
 		for (int i = 0; i < 3; i++) {
 			LOG_INF("Main thread running - iteration %d - tick: %llu",
@@ -551,7 +584,10 @@ int main(void)
 		__ASSERT(ret == 0, "Could not enter PM_STATE_SUSPEND_TO_RAM (err %d)", ret);
 
 		LOG_INF("=== Resumed from PM_STATE_SUSPEND_TO_RAM (substate 1: STOP) ===");
-
+#ifdef SPI_PM_TEST
+		LOG_INF("\nSPI Transaction Resuming..");
+		spi_pm_thread_resume();
+#endif
 		/* Verify main thread is running properly */
 		for (int i = 0; i < 3; i++) {
 			LOG_INF("Main thread running - iteration %d - tick: %llu",
