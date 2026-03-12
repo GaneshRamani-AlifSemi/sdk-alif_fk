@@ -16,6 +16,7 @@
 	};
 };
 
+
 &ospi0 {
 	status = "okay";
 };
