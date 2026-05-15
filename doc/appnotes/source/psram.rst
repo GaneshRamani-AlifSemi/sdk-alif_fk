@@ -122,6 +122,7 @@ APS512XXN PSRAM (E8 AppKit)
 
    west build -p always \
    -b alif_e8_ak/ae822fa0e5597xx0/rtss_he \
+   -S ospi-psram \
    ../alif/samples/drivers/spi_psram/
 
 2. Build command for application on the M55 HP core:
@@ -130,6 +131,7 @@ APS512XXN PSRAM (E8 AppKit)
 
    west build -p always \
    -b alif_e8_ak/ae822fa0e5597xx0/rtss_hp \
+   -S ospi-psram \
    ../alif/samples/drivers/spi_psram/
 
 S80KS HyperRAM (E8 DevKit)

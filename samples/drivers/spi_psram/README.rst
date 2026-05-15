@@ -38,6 +38,17 @@ build target. For example, for the ``e8_ae822 HE`` build, rename it to
 
 Also make sure the MPU entry for the OSPI1 XiP region is configured as
 read/write with SRAM attributes.
+=======
+*:dt compatible:`alif,apmemory-aps512xxn`* as a compatible.
+Use the ``ospi-psram`` snippet to enable the OSPI controller and AP PSRAM
+HyperRAM nodes.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/spi_psram
+   :board: alif_e8_ak/ae822fa0e5597xx0/rtss_he
+   :goals: build
+   :gen-args: -S ospi-psram
+   :compact:
 
 Sample Output
 =============
