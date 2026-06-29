@@ -306,6 +306,8 @@ void multi_sector_test(const struct device *flash_dev)
 	}
 }
 
+#ifdef CONFIG_ALIF_OSPI_FLASH_XIP
+
 void xip_test(const struct device *flash_dev)
 {
 	uint8_t i;
@@ -343,7 +345,7 @@ void xip_test(const struct device *flash_dev)
 			" contents are NOT Matching : Err Count [%d]!!!\n", e_count);
 	}
 }
-
+#endif
 
 int main(void)
 {
@@ -353,6 +355,8 @@ int main(void)
 		printk("%s: device not ready.\n", flash_dev->name);
 		return -1;
 	}
+
+	ram_app();
 
 	printf("\n%s OSPI flash testing\n", flash_dev->name);
 	printf("========================================\n");
@@ -384,6 +388,7 @@ int main(void)
 #ifdef CONFIG_ALIF_OSPI_FLASH_XIP
 	xip_test(flash_dev);
 #endif
+
 
 	return 0;
 }

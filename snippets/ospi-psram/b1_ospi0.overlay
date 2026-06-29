@@ -55,8 +55,8 @@
 };
 
 &ospi0 {
-	pinctrl-0 = <&pinctrl_psram>;
-	pinctrl-names = "default";
+	/*pinctrl-0 = <&pinctrl_psram>; */
+	/* pinctrl-names = "default"; */
 
 	cs-pin = <0>;
 	baud2-delay = <1>;
