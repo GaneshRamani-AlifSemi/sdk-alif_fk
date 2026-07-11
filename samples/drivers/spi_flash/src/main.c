@@ -18,12 +18,23 @@ const struct flash_parameters *flash_param;
 
 void single_sector_test(const struct device *flash_dev)
 {
-	const uint8_t expected[] = {0x55, 0xaa, 0x66, 0x99};
-	const size_t len = ARRAY_SIZE(expected);
-	uint8_t buf[len];
+	const uint8_t expected[] = {0x55, 0xaa, 0x33, 0x55};
+	//const size_t len = ARRAY_SIZE(expected);
+	//uint8_t buf[len];
 	int rc;
 	int i, e_count = 0;
 
+	uint8_t w_buf[BUFF_SIZE] = {0};
+	uint8_t r_buf[BUFF_SIZE] = {0};
+
+	const size_t len = ARRAY_SIZE(w_buf);
+
+	for (i = 0; i < BUFF_SIZE; i++) {
+		w_buf[i] =  i % 256;
+	}
+
+
+#if 1
 	printf("\nTest 1: Flash erase\n");
 
 	/* Full flash erase if SPI_FLASH_TEST_REGION_OFFSET = 0 and
@@ -32,6 +43,7 @@ void single_sector_test(const struct device *flash_dev)
 	rc = flash_erase(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, SPI_FLASH_SECTOR_SIZE);
 	if (rc != 0) {
 		printf("Flash erase failed! %d\n", rc);
+		return;
 	} else {
 		printf("Flash erase succeeded!\n");
 	}
@@ -39,25 +51,27 @@ void single_sector_test(const struct device *flash_dev)
 	printf("\nTest 1: Flash write\n");
 
 	printf("Attempting to write %zu bytes\n", len);
-	rc = flash_write(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, expected, len);
+	rc = flash_write(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, w_buf, len);
 	if (rc != 0) {
 		printf("Flash write failed! %d\n", rc);
 		return;
 	}
 
+#endif
 	printf("\nTest 1: Flash read\n");
 
-	memset(buf, 0, len);
-	rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, buf, len);
+	//int t_len = len >> 3;
+	memset(r_buf, 0, len);
+	rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, r_buf, len);
 	if (rc != 0) {
 		printf("Flash read failed! %d\n", rc);
 		return;
 	}
 
 	for (i = 0; i < len; i++) {
-		if (buf[i] != expected[i]) {
+		if (r_buf[i] != w_buf[i]) {
 			e_count++;
-			printf("Not matched at [%d] _w[%4x] _r[%4x]\n", i, expected[i], buf[i]);
+			printf("Not matched at [%d] _w[%4d] _r[%4d]\n", i, w_buf[i], r_buf[i]);
 		}
 	}
 
