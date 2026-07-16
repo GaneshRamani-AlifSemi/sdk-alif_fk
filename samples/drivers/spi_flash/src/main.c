@@ -391,7 +391,6 @@ int main(void)
 	printf("* Write Blk Size: %zu\n", flash_param->write_block_size);
 	printf("* Total Size in MB: %" PRIu64 "\n", flash_size / (1024U * 1024U));
 
-
 	/*Current RW support only on 16 DFS */
 	single_sector_test(flash_dev);
 
