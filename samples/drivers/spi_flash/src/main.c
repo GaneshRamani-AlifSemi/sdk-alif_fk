@@ -10,6 +10,8 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/kernel.h>
 
+#include "flash_ospi_is25wx.h"
+
 #define SPI_FLASH_TEST_REGION_OFFSET 0x0
 #define SPI_FLASH_SECTOR_SIZE        4096
 #define BUFF_SIZE                    1024
@@ -306,42 +308,101 @@ void multi_sector_test(const struct device *flash_dev)
 	}
 }
 
+static void print_bytes(const char *label, const uint8_t *data, size_t len)
+{
+	printf("%s", label);
+	for (size_t i = 0; i < len; i++) {
+		printf(" %02x", data[i]);
+	}
+	printf("\n");
+}
+
+static int xip_read(const struct device *flash_dev, const uint8_t *xip_address,
+		    uint8_t *data, size_t len)
+{
+	int rc;
+	int unlock_rc;
+
+	rc = flash_ospi_is25wx_xip_lock(flash_dev);
+	if (rc != 0) {
+		return rc;
+	}
+
+	memcpy(data, xip_address, len);
+
+	unlock_rc = flash_ospi_is25wx_xip_unlock(flash_dev);
+	return unlock_rc;
+}
+
 void xip_test(const struct device *flash_dev)
 {
-	uint8_t i;
-	uint32_t xip_r[64] = {0}, fls_r[64] = {0}, cnt;
-	uint32_t *ptr = (uint32_t *)DT_PROP_BY_IDX(DT_PARENT(DT_ALIAS(spi_flash0)),
-						xip_base_address, 0);
-	int32_t rc, e_count = 0;
+	static const uint8_t write_data[16] = {
+		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+		0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+	};
+	uint8_t xip_data[sizeof(write_data)] = {0};
+	uint8_t command_data[sizeof(write_data)] = {0};
+	const uint8_t *xip_address =
+		(const uint8_t *)DT_PROP_BY_IDX(DT_PARENT(DT_ALIAS(spi_flash0)),
+						     xip_base_address, 0);
+	int rc;
 
-	printf("\nTest 5: XiP Read\n");
+	printf("\nTest 5: Runtime XiP and command-mode access\n");
 
-	memcpy(xip_r, ptr, sizeof(xip_r));
-
-	printf("Content Read from OSPI Flash in XiP Mode successfully\n\n");
-
-	cnt = ARRAY_SIZE(xip_r);
-
-	printf("Read from Flash cmd while XiP Mode turnned on\n\n");
-
-	rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET,
-				fls_r, cnt * sizeof(uint32_t));
+	/* 1. Read and print the initial contents through the XiP window. */
+	rc = xip_read(flash_dev, xip_address, xip_data, sizeof(xip_data));
 	if (rc != 0) {
-		printf("Flash read failed! %d\n", rc);
+		printf("Step 1: XiP read failed! %d\n", rc);
+		return;
+	}
+	print_bytes("Step 1: XiP read:       ", xip_data, sizeof(xip_data));
+
+	/* 2. Erase the destination sector, then program 16 bytes indirectly. */
+	rc = flash_erase(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, SPI_FLASH_SECTOR_SIZE);
+	if (rc != 0) {
+		printf("Step 2: Flash erase failed! %d\n", rc);
+		return;
+	}
+	print_bytes("Step 2: Command write:  ", write_data, sizeof(write_data));
+	rc = flash_write(flash_dev, SPI_FLASH_TEST_REGION_OFFSET,
+			 write_data, sizeof(write_data));
+	if (rc != 0) {
+		printf("Step 2: Command write failed! %d\n", rc);
 		return;
 	}
 
-	for (i = 0; i < cnt; i++)
-		if (fls_r[i] != xip_r[i]) {
-			e_count++;
-		}
-
-	if (!e_count) {
-		printf("XiP Read Test Succceeded !!\n\n");
-	} else {
-		printf("XiP Test Failed !"
-			" contents are NOT Matching : Err Count [%d]!!!\n", e_count);
+	/* 3. Re-enter XiP, read back, print, and compare with the write data. */
+	memset(xip_data, 0, sizeof(xip_data));
+	rc = xip_read(flash_dev, xip_address, xip_data, sizeof(xip_data));
+	if (rc != 0) {
+		printf("Step 3: XiP read failed! %d\n", rc);
+		return;
 	}
+	print_bytes("Step 3: XiP read:       ", xip_data, sizeof(xip_data));
+	printf("Step 3: XiP compare %s\n",
+	       memcmp(xip_data, write_data, sizeof(write_data)) == 0 ? "passed" : "failed");
+
+	/* 4. Read the same 16 bytes using an indirect command and print them. */
+	rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET,
+			command_data, sizeof(command_data));
+	if (rc != 0) {
+		printf("Step 4: Command read failed! %d\n", rc);
+		return;
+	}
+	print_bytes("Step 4: Command read:   ", command_data, sizeof(command_data));
+
+	/* 5. Re-enter XiP again and compare it with the command-mode read. */
+	memset(xip_data, 0, sizeof(xip_data));
+	rc = xip_read(flash_dev, xip_address, xip_data, sizeof(xip_data));
+	if (rc != 0) {
+		printf("Step 5: XiP read failed! %d\n", rc);
+		return;
+	}
+	print_bytes("Step 5: XiP read:       ", xip_data, sizeof(xip_data));
+	printf("Step 5: XiP/command compare %s\n",
+	       memcmp(xip_data, command_data, sizeof(command_data)) == 0 ? "passed" : "failed");
+
+	printf("Runtime XiP and command-mode test complete\n");
 }
 
 
@@ -368,7 +429,6 @@ int main(void)
 	printf("* Total Size in MB: %d\n",
 	       (flash_param->num_of_sector * flash_param->sector_size) / (1024 * 1024));
 
-
 	/*Current RW support only on 16 DFS */
 	single_sector_test(flash_dev);
 
@@ -381,9 +441,7 @@ int main(void)
 	/* Multi-Secot R/W and Erase test*/
 	multi_sector_test(flash_dev);
 
-#ifdef CONFIG_ALIF_OSPI_FLASH_XIP
 	xip_test(flash_dev);
-#endif
 
 	return 0;
 }
