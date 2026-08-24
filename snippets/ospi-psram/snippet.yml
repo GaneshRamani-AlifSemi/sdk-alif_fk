@@ -1,0 +1,11 @@
+name: ospi-psram
+
+boards:
+  /alif_b1_dk.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: b1_dk_ospi0.overlay
+      EXTRA_CONF_FILE: prj.conf
+  /alif_e7_dk.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: e7_dk_ospi0.overlay
+      EXTRA_CONF_FILE: prj.conf
