@@ -59,7 +59,7 @@
 		compatible = "infineon,s80ks";
 		reg = <0>;
 		size = <DT_SIZE_M(32)>;
-		mspi-max-frequency = <40000000>;
+		mspi-max-frequency = <100000000>;
 		mspi-io-mode = "MSPI_IO_MODE_HEX_8_8_16";
 		mspi-data-rate = "MSPI_DATA_RATE_DUAL";
 		mspi-dqs-enable;

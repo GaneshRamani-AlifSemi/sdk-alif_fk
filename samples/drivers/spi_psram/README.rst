@@ -13,10 +13,8 @@ mapped address range and reads it back for verification.
 The sample supports:
 
 * ISSI IS66/67WVH HyperRAM devices using ``issi,is66wvh``.
-
-E8 boards use an APS512XXN AP Memory PSRAM device rather than IS66WVH
-HyperRAM. The existing E8 overlay is retained, but E8 support is not enabled
-by the ``ospi-psram`` snippet until the AP Memory driver is migrated to MSPI.
+* Infineon S80KS HyperRAM devices using ``infineon,s80ks``.
+* AP Memory APS512XXN devices using ``apmemory,aps512xxn``.
 
 On E1, E3, E5, and E7 series devices, the OSPI RAM path uses 16-bit data
 transactions. The sample writes and verifies ``uint16_t`` data and runs multiple
@@ -47,7 +45,9 @@ The same snippet can also be passed through CMake:
 The snippet maps supported board families to the matching OSPI PSRAM overlay:
 
 * B1 boards: OSPI0 ISSI HyperRAM overlay.
-* E3, E5, and E7 boards: OSPI0 ISSI HyperRAM overlay.
+* E1C, E3, E5, and E7 boards: OSPI0 ISSI HyperRAM overlay.
+* E8 development kits: OSPI1 Infineon S80KS HyperRAM overlay.
+* E8 application kits: OSPI0 AP Memory APS512XXN overlay.
 
 Sample Output
 *************

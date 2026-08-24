@@ -15,5 +15,9 @@ boards:
       EXTRA_CONF_FILE: prj.conf
   /alif_e8_dk.*/:
     append:
-      EXTRA_DTC_OVERLAY_FILE: e8_ospi1.overlay
+      EXTRA_DTC_OVERLAY_FILE: e8_dk_aps_ospi0.overlay
+      EXTRA_CONF_FILE: prj.conf
+  /alif_e8_ak.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: e8_ak_aps_hex_spi0.overlay
       EXTRA_CONF_FILE: prj.conf
