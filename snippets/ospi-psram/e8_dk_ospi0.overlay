@@ -1,0 +1,48 @@
+/* Copyright (C) 2025 Alif Semiconductor - All Rights Reserved.
+ * Use, distribution and modification of this code is permitted under the
+ * terms stated in the Alif Semiconductor Software License Agreement
+ */
+
+/*
+ * Enable the Infineon S80KS HyperRAM connected to OSPI0 on E8 DK boards.
+ */
+
+/ {
+	aliases {
+		spi-psram = &ospi_ram;
+	};
+};
+
+&ospi0 {
+	hyperbus-mode;
+	memmap-write-support;
+	xip-ser-support;
+	baud2-delay = <0>;
+	rx-ds-delay = <11>;
+	xip-wait-cycles = <6>;
+	tx-fifo-threshold = <64>;
+	ddr-drive-edge = <0>;
+	status = "okay";
+
+	ospi_ram: hyperram@0 {
+		compatible = "infineon,s80ks";
+		reg = <0>;
+		size = <DT_SIZE_M(64)>;
+		mspi-max-frequency = <100000000>;
+		mspi-io-mode = "MSPI_IO_MODE_OCTAL";
+		mspi-data-rate = "MSPI_DATA_RATE_DUAL";
+		mspi-dqs-enable;
+		mspi-hardware-ce-num = <0>;
+		mspi-cpp-mode = "MSPI_CPP_MODE_0";
+		mspi-endian = "MSPI_BIG_ENDIAN";
+		mspi-ce-polarity = "MSPI_CE_ACTIVE_LOW";
+		rx-dummy = <6>;
+		tx-dummy = <6>;
+		command-length = "INSTR_DISABLED";
+		address-length = "ADDR_DISABLED";
+		xip-config = <1 0x0 DT_SIZE_M(64) 0>;
+		initial-latency = <3>;
+		fixed-latency;
+		status = "okay";
+	};
+};

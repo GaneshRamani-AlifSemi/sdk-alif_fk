@@ -10,7 +10,8 @@ This snippet selects an overlay fragment to enable the DesignWare MSPI
 controller and an ISSI IS66WVH HyperRAM device on supported Alif boards.
 
 The current MSPI memory configuration supports IS66WVH HyperRAM on B1 DK and
-E7 DK boards.
+E7 DK boards. The ``e8_dk_ospi0.overlay`` configuration supports the Infineon
+S80KS HyperRAM fitted to E8 Engineering Kit boards.
 
 Building and Running
 ********************
