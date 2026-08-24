@@ -11,7 +11,8 @@ controller and an ISSI IS66WVH HyperRAM device on supported Alif boards.
 
 The current MSPI HyperRAM configuration supports B1, E1C, E3, E5, and E7
 boards with IS66WVH memory. E8 Engineering Kit boards use S80KS HyperRAM on
-OSPI1.
+OSPI1. The ``e8_ospi0.overlay`` configuration is retained for the APS512XXN
+AP Memory device fitted to E8 boards, but is not selected by this snippet.
 
 Building and Running
 ********************
