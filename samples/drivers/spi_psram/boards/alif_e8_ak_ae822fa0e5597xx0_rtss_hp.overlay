@@ -60,19 +60,35 @@
 
 
 &ospi0 {
+	/delete-node/ aps512xxn;
 	rx-ds-delay = <11>;
 	xip-wait-cycles = <255>;
 	tx-fifo-threshold = <0>;
 	ddr-drive-edge = <1>;
 	clocks = <&clockctrl ALIF_OSPI0_ACLK_CLK>;
-	xip-base-address = <0xA0000000 0x10000000>;
-	bus-speed = <100000000>;
+	clock-frequency = <400000000>;
+	x16-address-shim;
 	status = "okay";
 
-	aps512xxn: aps512xxn {
-		compatible = "alif,apmemory-aps512xxn";
-		size = <DT_SIZE_M(64)>;
-		x16-data-transfer-mode;
+	aps512xxn: aps512xxn@0 {
+		compatible = "apmemory,aps512xxn";
+		reg = <0>;
+		size = <DT_SIZE_M(512)>;
+		mspi-max-frequency = <100000000>;
+		mspi-io-mode = "MSPI_IO_MODE_HEX_8_8_16";
+		mspi-data-rate = "MSPI_DATA_RATE_S_D_D";
+		mspi-dqs-enable;
+		mspi-hardware-ce-num = <0>;
+		mspi-cpp-mode = "MSPI_CPP_MODE_0";
+		mspi-endian = "MSPI_BIG_ENDIAN";
+		mspi-ce-polarity = "MSPI_CE_ACTIVE_LOW";
+		rx-dummy = <3>;
+		tx-dummy = <3>;
+		read-command = <0x20>;
+		write-command = <0xa0>;
+		command-length = "INSTR_1_BYTE";
+		address-length = "ADDR_4_BYTE";
+		xip-config = <1 0x0 DT_SIZE_M(64) 0>;
 		latency-code = <4>;
 		status = "okay";
 	};

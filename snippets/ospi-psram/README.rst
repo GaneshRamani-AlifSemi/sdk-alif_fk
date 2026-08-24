@@ -11,7 +11,9 @@ controller and an ISSI IS66WVH HyperRAM device on supported Alif boards.
 
 The current MSPI memory configuration supports IS66WVH HyperRAM on B1 DK and
 E7 DK boards. The ``e8_dk_ospi0.overlay`` configuration supports the Infineon
-S80KS HyperRAM fitted to E8 Engineering Kit boards.
+S80KS HyperRAM fitted to E8 Engineering Kit boards. The
+``e8_ak_ospi0.overlay`` configuration supports the APS512XXN AP Memory device
+fitted to E8 AppKit boards.
 
 Building and Running
 ********************
