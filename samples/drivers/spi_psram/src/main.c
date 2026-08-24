@@ -14,7 +14,9 @@
 #include <zephyr/kernel.h>
 #include <errno.h>
 
-#if defined(CONFIG_SOC_SERIES_E7) || defined(CONFIG_SOC_SERIES_E5) || \
+#if defined(CONFIG_SOC_AE402FA0E5597XX0) || defined(CONFIG_SOC_SERIES_E8) || \
+	defined(CONFIG_SOC_SERIES_E7) || \
+	defined(CONFIG_SOC_SERIES_E5) || \
 	defined(CONFIG_SOC_SERIES_E3) || defined(CONFIG_SOC_SERIES_E1)
 #include <zephyr/arch/arm/mpu/arm_mpu.h>
 #include <zephyr/cache.h>
@@ -23,11 +25,18 @@
 
 #define PSRAM_NODE		DT_ALIAS(spi_psram)
 #define OSPI_XIP_BASE		DT_REG_ADDR_BY_NAME(DT_PARENT(PSRAM_NODE), xip)
+#define PSRAM_TEST_CACHEABLE_ATTR	0
 
-#if defined(CONFIG_SOC_SERIES_E7) || defined(CONFIG_SOC_SERIES_E5) || \
+#if defined(CONFIG_SOC_AE402FA0E5597XX0) || defined(CONFIG_SOC_SERIES_E8) || \
+	defined(CONFIG_SOC_SERIES_E7) || \
+	defined(CONFIG_SOC_SERIES_E5) || \
 	defined(CONFIG_SOC_SERIES_E3) || defined(CONFIG_SOC_SERIES_E1)
 #define PSRAM_TEST_RUNTIME_MPU_ATTR	1
+#if defined(CONFIG_SOC_AE402FA0E5597XX0) || defined(CONFIG_SOC_SERIES_E8)
+typedef uint32_t psram_data_t;
+#else
 typedef uint16_t psram_data_t;
+#endif
 #else
 #define PSRAM_TEST_RUNTIME_MPU_ATTR	0
 #if defined(CONFIG_SOC_SERIES_B1)
@@ -47,7 +56,11 @@ static void print_test_config(uint32_t ram_size)
 	printk("  Pattern         : incrementing %u-bit value, wraps at data width\n",
 	       sizeof(psram_data_t) * 8);
 #if PSRAM_TEST_RUNTIME_MPU_ATTR
+	#if PSRAM_TEST_CACHEABLE_ATTR
 	printk("  MPU test cases  : Device, Normal non-cacheable, SRAM cacheable\n");
+	#else
+	printk("  MPU test cases  : Device, Normal non-cacheable\n");
+	#endif
 #else
 	printk("  MPU test cases  : Direct read/write, no runtime MPU changes\n");
 #endif
@@ -91,11 +104,18 @@ static int ospi_xip_set_mair_idx(uint8_t mair_idx, size_t cache_size)
 
 static uint32_t verify_pattern(const char *mode, volatile psram_data_t *ptr, uint32_t ram_size)
 {
+	const uint32_t progress_interval = 1024U * 1024U;
 	uint32_t total_errors = 0;
 
 	printk("Reading back in %s mode:\n", mode);
 
 	for (uint32_t index = 0; index < (ram_size / sizeof(psram_data_t)); index++) {
+		uint32_t offset = index * sizeof(psram_data_t);
+
+		if ((offset % progress_interval) == 0U) {
+			printk("%s verifying offset 0x%08x\n", mode, offset);
+		}
+
 		psram_data_t got = ptr[index];
 		psram_data_t expected = (psram_data_t)index;
 
@@ -161,6 +181,7 @@ int main(void)
 
 	(void)verify_pattern("Normal non-cacheable", ptr, ram_size);
 
+#if PSRAM_TEST_CACHEABLE_ATTR
 	print_test_case("SRAM cacheable", "Device", "SRAM cacheable");
 
 	ret = ospi_xip_set_mair_idx(MPU_MAIR_INDEX_SRAM, ram_size);
@@ -170,6 +191,7 @@ int main(void)
 	}
 
 	(void)verify_pattern("SRAM cacheable", ptr, ram_size);
+#endif
 #else
 	print_test_case("Direct", "Default MPU/static attribute", "Default MPU/static attribute");
 
