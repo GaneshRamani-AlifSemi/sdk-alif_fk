@@ -50,7 +50,6 @@
 	hyperbus-mode;
 	memmap-write-support;
 	rx-ds-delay = <11>;
-	rx-ds1-delay = <8>;
 	tx-fifo-threshold = <0>;
 	ddr-drive-edge = <1>;
 	status = "okay";
