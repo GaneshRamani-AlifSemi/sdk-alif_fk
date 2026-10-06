@@ -38,13 +38,16 @@
 		read-enable = <0x1>;
 		drive-strength = <12>;
 		slew-rate = <0x1>;
-		schmitt-enable = <0x1>;
+		schmitt-enable = <0x0>;
 	};
 	group1 {
 		pinmux = <PIN_P3_0__OSPI0_SCLK_B>,
+			 <PIN_P3_1__OSPI0_SCLKN_B>,
 			 <PIN_P3_2__OSPI0_SS0_B>;
-		read-enable = <0x1>;
 		drive-strength = <12>;
+		slew-rate = <0x1>;
+		read-enable = <0x0>;
+		schmitt-enable = <0x0>;
 	};
 	group2 {
 		pinmux = <PIN_P1_6__OSPI0_RXDS_B>,
@@ -52,14 +55,28 @@
 		read-enable = <0x1>;
 		drive-strength = <12>;
 		slew-rate = <0x1>;
-		schmitt-enable = <0x1>;
+		schmitt-enable = <0x0>;
 	};
 };
 
 &ospi0 {
+	/* APS512XXN signal delays calibrated at 200 MHz on E8 AppKit. */
+	bus-speed = <200000000>;
+	txd-delays = <5 5 4 4 5 7 4 4 8 9 8 8 8 8 8 8>;
+	rxd-delays = <2 3 3 2 3 2 1 2 3 2 3 3 3 3 3 3>;
+	ssi-oe-n-delays = <0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0>;
+	rx-ds-delays = <8 3>;
+	txd-dm-delays = <7 5>;
+	dm-oe-n-delays = <0 0>;
+	sclk-delay = <0>;
+	sclkn-delay = <0>;
+	ss-n-delays = <0 0>;
+	ddr-drive-edge = <0>;
 	status = "okay";
 };
 
 &aps512xxn {
+	/* Seven latency clocks are required for operation at 200 MHz. */
+	latency-code = <7>;
 	status = "okay";
 };

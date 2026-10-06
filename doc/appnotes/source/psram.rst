@@ -15,8 +15,7 @@ target has a devicetree node with one of these compatibles:
 - ``alif,infineon-s80ks2564`` (Infineon S80KS HyperRAM)
 - ``issi,is66wvhxx`` (ISSI IS66WVH HyperRAM)
 
-Use the matching overlay in ``samples/drivers/spi_psram/boards`` for the
-device under test.
+Use the matching overlay in ``snippets/ospi-psram`` for the device under test.
 
 The HexSPI0/OSPI0 SS0 instance is connected to the APS512XXN device. It
 operates in both x8 and x16 transfer mode. The ``x16-data-transfer-mode``
@@ -31,9 +30,8 @@ Build this configuration with the Alif E8 DevKit
 The ISSI IS66WVH HyperRAM is connected to OSPI0 on the Alif B1 DevKit
 (``alif_b1_dk``). The compatible is ``issi,is66wvhxx``, and the XIP
 window starts at ``0xA0000000``. This configuration is supported on the
-M55 HE core only. The overlay
-``alif_b1_dk_ab1c1f4m51820ph0_rtss_he.overlay`` is applied
-automatically.
+M55 HE core only. Select ``b1_dk_ospi0.overlay`` using the
+``ospi-psram`` snippet.
 
 .. note::
 
@@ -62,7 +60,7 @@ Supported Devices and Overlays
 ==============================
 
 The sample selects the RAM device from the ``spi-psram`` alias. Board
-overlays under ``samples/drivers/spi_psram/boards`` provide that alias.
+overlays under ``snippets/ospi-psram`` provide that alias.
 
 .. list-table::
    :header-rows: 1
@@ -75,18 +73,18 @@ overlays under ``samples/drivers/spi_psram/boards`` provide that alias.
    * - APS512XXN PSRAM
      - ``alif,apmemory-aps512xxn``
      - HexSPI0/OSPI0 SS0
-     - ``alif_e8_ak_ae822fa0e5597xx0_rtss_he.overlay`` /
-       ``alif_e8_ak_ae822fa0e5597xx0_rtss_hp.overlay``
-       (picked automatically for E8 AppKit)
+     - ``snippets/ospi-psram/e8_ak_ospi0.overlay``
+       (selected with ``-S ospi-psram`` for E8 AppKit)
    * - S80KS HyperRAM
      - ``alif,infineon-s80ks2564``
      - OSPI1 SS0
-     - ``alif_hex_s80ks.overlay`` (build with the E8 DevKit target)
+     - ``snippets/ospi-psram/e8_ek_ospi1.overlay``
+       (select explicitly with the E8 DevKit target)
    * - IS66WVH HyperRAM
      - ``issi,is66wvhxx``
      - OSPI0
-     - ``alif_b1_dk_ab1c1f4m51820ph0_rtss_he.overlay``
-       (picked automatically for B1 DevKit, M55 HE only)
+     - ``snippets/ospi-psram/b1_dk_ospi0.overlay``
+       (selected with ``-S ospi-psram`` for B1 DevKit, M55 HE only)
 
 .. note::
 
@@ -137,8 +135,8 @@ APS512XXN PSRAM (E8 AppKit)
 S80KS HyperRAM (E8 DevKit)
 --------------------------
 
-The ``alif_hex_s80ks.overlay`` file provides the devicetree configuration
-for the Infineon S80KS HyperRAM.
+The ``snippets/ospi-psram/e8_ek_ospi1.overlay`` file provides the devicetree
+configuration for the Infineon S80KS HyperRAM on the engineering board.
 
 S80KS is connected over OSPI1. Build the sample with the Alif E8 DevKit
 board target.
@@ -152,7 +150,7 @@ Pass the overlay on the build command:
    west build -p always \
    -b alif_e8_dk/ae822fa0e5597xx0/rtss_he \
    ../alif/samples/drivers/spi_psram/ \
-   -- -DDTC_OVERLAY_FILE=boards/alif_hex_s80ks.overlay
+   -- '-DDTC_OVERLAY_FILE=../../../snippets/ospi-psram/e8_ek_ospi1.overlay'
 
 2. Build command for application on the M55 HP core:
 
@@ -161,12 +159,27 @@ Pass the overlay on the build command:
    west build -p always \
    -b alif_e8_dk/ae822fa0e5597xx0/rtss_hp \
    ../alif/samples/drivers/spi_psram/ \
-   -- -DDTC_OVERLAY_FILE=boards/alif_hex_s80ks.overlay
+   -- '-DDTC_OVERLAY_FILE=../../../snippets/ospi-psram/e8_ek_ospi1.overlay'
 
-Alternatively, rename ``alif_hex_s80ks.overlay`` to the overlay name
-expected by the selected DevKit target so Zephyr picks it up automatically.
-For the ``e8_ae822`` HE build, that name is
-``alif_e8_dk_ae822fa0e5597xx0_rtss_he.overlay``.
+The overlay path is relative to the sample directory. Despite its filename,
+this overlay configures OSPI1. Do not add ``-S ospi-psram`` to these commands,
+as that selects the DevKit AP Memory device on OSPI0.
+
+IS66WVH HyperRAM (E7 DevKit)
+----------------------------
+
+The ``ospi-psram`` snippet selects ``e7_dk_ospi0.overlay`` for E7 DevKit
+HE and HP targets. The HAL OSPI driver uses OSPI0 at 100 MHz with six
+wait cycles and the XiP region starting at ``0xA0000000``.
+
+.. code-block:: console
+
+   west build -p always \
+   -b alif_e7_dk/ae722f80f55d5xx/rtss_he \
+   -S ospi-psram \
+   ../alif/samples/drivers/spi_psram
+
+Replace ``rtss_he`` with ``rtss_hp`` for the HP core.
 
 IS66WVH HyperRAM (B1 DevKit)
 ----------------------------
@@ -175,9 +188,8 @@ The ISSI IS66WVH HyperRAM is connected to OSPI0 on the Alif B1 DevKit.
 The XIP window starts at ``0xA0000000``. This sample is supported on the
 M55 HE core only.
 
-The overlay
-``boards/alif_b1_dk_ab1c1f4m51820ph0_rtss_he.overlay`` is applied
-automatically for this board target.
+The ``ospi-psram`` snippet selects
+``snippets/ospi-psram/b1_dk_ospi0.overlay`` for this board target.
 
 1. Build command for application on the M55 HE core:
 
@@ -185,6 +197,7 @@ automatically for this board target.
 
    west build -p always \
    -b alif_b1_dk/ab1c1f4m51820ph0/rtss_he \
+   -S ospi-psram \
    ../alif/samples/drivers/spi_psram
 
 Executing Binary on the AppKit or DevKit

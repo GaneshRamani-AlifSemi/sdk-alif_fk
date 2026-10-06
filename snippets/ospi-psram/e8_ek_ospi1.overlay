@@ -14,9 +14,9 @@
  * This configuration was tested on the Alif E8 CSP engineering board.
  *
  * On the Alif E8 engineering board, the HyperRAM is connected over OSPI1.
- * To test on this board, use the Alif E8 DevKit build and rename this file to
- * match the build target. For example, use
- * alif_e8_dk_ae822fa0e5597xx0_rtss_he.overlay for the "e8_ae822 HE" build.
+ * To test on this board, use the Alif E8 DevKit build and select this overlay
+ * explicitly with DTC_OVERLAY_FILE. Despite the filename, this hardware uses
+ * OSPI1 rather than OSPI0.
  *
  * Ensure the MPU entry for the XiP region is marked as read/write with SRAM
  * attributes.
